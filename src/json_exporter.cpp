@@ -1,0 +1,99 @@
+#include "json_exporter.h"
+#include <fstream>
+#include <iostream>
+
+namespace obj2blocks {
+    JsonExporter::JsonExporter() {
+    }
+
+    JsonExporter::~JsonExporter() {
+    }
+
+    bool JsonExporter::exportToFile(const std::string&filename,
+                                    const std::vector<MinecraftCommand>&commands,
+                                    const ConversionParams&params) {
+        try {
+            nlohmann::json json = createJson(commands, params);
+
+            std::ofstream file(filename);
+            if (!file.is_open()) {
+                std::cerr << "Error: Could not open file for writing: " << filename << std::endl;
+                return false;
+            }
+
+            file << json.dump(2);
+            file.close();
+
+            std::cout << "Successfully exported to: " << filename << std::endl;
+            return true;
+        }
+        catch (const std::exception&e) {
+            std::cerr << "Error exporting to JSON: " << e.what() << std::endl;
+            return false;
+        }
+    }
+
+    nlohmann::json JsonExporter::createJson(const std::vector<MinecraftCommand>&commands,
+                                            const ConversionParams&params) {
+        nlohmann::json json;
+
+        json["model_info"]["source"] = params.input_file;
+        json["model_info"]["target_size"] = params.target_size;
+        json["model_info"]["voxel_size"] = params.voxel_size;
+        json["model_info"]["scale_factor"] = params.scale_factor;
+        json["model_info"]["auto_scale"] = params.auto_scale;
+        json["model_info"]["solid_fill"] = params.solid;
+        json["model_info"]["optimization_enabled"] = params.optimize;
+        json["model_info"]["total_blocks"] = countTotalBlocks(commands);
+        json["model_info"]["total_commands"] = commands.size();
+
+        int fillarea_count = 0;
+        int createblock_count = 0;
+
+        nlohmann::json commands_array = nlohmann::json::array();
+        for (const auto&cmd: commands) {
+            commands_array.push_back(commandToJson(cmd));
+            if (cmd.type == CommandType::FillArea) {
+                fillarea_count++;
+            }
+            else {
+                createblock_count++;
+            }
+        }
+
+        json["model_info"]["fillarea_commands"] = fillarea_count;
+        json["model_info"]["createblock_commands"] = createblock_count;
+        json["commands"] = commands_array;
+
+        return json;
+    }
+
+    nlohmann::json JsonExporter::commandToJson(const MinecraftCommand&cmd) {
+        nlohmann::json json_cmd;
+
+        if (cmd.type == CommandType::CreateBlock) {
+            json_cmd["type"] = "createblock";
+            json_cmd["position"] = {cmd.position.x, cmd.position.y, cmd.position.z};
+        }
+        else {
+            json_cmd["type"] = "fillarea";
+            json_cmd["corner1"] = {cmd.area.min.x, cmd.area.min.y, cmd.area.min.z};
+            json_cmd["corner2"] = {cmd.area.max.x, cmd.area.max.y, cmd.area.max.z};
+        }
+
+        return json_cmd;
+    }
+
+    int JsonExporter::countTotalBlocks(const std::vector<MinecraftCommand>&commands) {
+        int total = 0;
+        for (const auto&cmd: commands) {
+            if (cmd.type == CommandType::CreateBlock) {
+                total += 1;
+            }
+            else {
+                total += cmd.area.volume();
+            }
+        }
+        return total;
+    }
+}

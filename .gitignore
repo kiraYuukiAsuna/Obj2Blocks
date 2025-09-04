@@ -1,0 +1,7 @@
+.idea/
+.vscode/
+cmake-build-debug/
+build/
+Untitled.obj
+Untitled.json
+blocks.obj
