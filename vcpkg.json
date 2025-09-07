@@ -1,23 +1,21 @@
 {
-  "name": "obj2blocks",
-  "version-string": "1.0.0",
-  "builtin-baseline": "d3d7710cbc59929ac53f92c312c5ede7a0cc2378",
-  "dependencies": [
-    {
-      "name": "pmp-library",
-      "version>=": "3.0.0"
-    },
-    {
-      "name": "nlohmann-json",
-      "version>=": "3.12.0#1"
-    },
-    {
-      "name": "eigen3",
-      "version>=": "3.4.0#5"
-    },
-    {
-      "name": "cxxopts",
-      "version>=": "3.3.1#1"
-    }
-  ]
+  "name" : "obj2blocks",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "d3d7710cbc59929ac53f92c312c5ede7a0cc2378",
+  "dependencies" : [ {
+    "name" : "pmp-library",
+    "version>=" : "3.0.0"
+  }, {
+    "name" : "nlohmann-json",
+    "version>=" : "3.12.0#1"
+  }, {
+    "name" : "eigen3",
+    "version>=" : "3.4.0#5"
+  }, {
+    "name" : "cxxopts",
+    "version>=" : "3.3.1#1"
+  }, {
+    "name" : "stb",
+    "version>=" : "2024-07-29#1"
+  } ]
 }

@@ -1,6 +1,8 @@
 #include "json_exporter.h"
 #include <fstream>
 #include <iostream>
+#include <climits>
+#include <algorithm>
 
 namespace obj2blocks {
     JsonExporter::JsonExporter() {
@@ -46,6 +48,37 @@ namespace obj2blocks {
         json["model_info"]["optimization_enabled"] = params.optimize;
         json["model_info"]["total_blocks"] = countTotalBlocks(commands);
         json["model_info"]["total_commands"] = commands.size();
+        
+        // Calculate bounding box
+        int minX = INT_MAX, minY = INT_MAX, minZ = INT_MAX;
+        int maxX = INT_MIN, maxY = INT_MIN, maxZ = INT_MIN;
+        
+        for (const auto& cmd : commands) {
+            if (cmd.type == CommandType::CreateBlock) {
+                minX = std::min(minX, cmd.position.x);
+                minY = std::min(minY, cmd.position.y);
+                minZ = std::min(minZ, cmd.position.z);
+                maxX = std::max(maxX, cmd.position.x);
+                maxY = std::max(maxY, cmd.position.y);
+                maxZ = std::max(maxZ, cmd.position.z);
+            } else {
+                minX = std::min(minX, cmd.area.min.x);
+                minY = std::min(minY, cmd.area.min.y);
+                minZ = std::min(minZ, cmd.area.min.z);
+                maxX = std::max(maxX, cmd.area.max.x);
+                maxY = std::max(maxY, cmd.area.max.y);
+                maxZ = std::max(maxZ, cmd.area.max.z);
+            }
+        }
+        
+        // Add bounding box info
+        json["model_info"]["bounding_box"]["min"] = {minX, minY, minZ};
+        json["model_info"]["bounding_box"]["max"] = {maxX, maxY, maxZ};
+        json["model_info"]["bounding_box"]["size"] = {
+            maxX - minX + 1,
+            maxY - minY + 1,
+            maxZ - minZ + 1
+        };
 
         int fillarea_count = 0;
         int createblock_count = 0;
@@ -80,6 +113,9 @@ namespace obj2blocks {
             json_cmd["corner1"] = {cmd.area.min.x, cmd.area.min.y, cmd.area.min.z};
             json_cmd["corner2"] = {cmd.area.max.x, cmd.area.max.y, cmd.area.max.z};
         }
+        
+        // Add color information
+        json_cmd["color"] = {cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a};
 
         return json_cmd;
     }

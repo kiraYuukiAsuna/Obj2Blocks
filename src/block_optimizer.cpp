@@ -13,7 +13,7 @@ namespace obj2blocks {
 
         if (!optimization_enabled_ || voxels.empty()) {
             for (const auto&voxel: voxels) {
-                commands.emplace_back(voxel);
+                commands.emplace_back(voxel, Color4());  // Default color
             }
             return commands;
         }
@@ -24,11 +24,11 @@ namespace obj2blocks {
         std::vector<Box3i> regions = findRectangularRegions(remaining_voxels);
 
         for (const auto&region: regions) {
-            commands.emplace_back(region);
+            commands.emplace_back(region, Color4());  // Default color
         }
 
         for (const auto&voxel: remaining_voxels) {
-            commands.emplace_back(voxel);
+            commands.emplace_back(voxel, Color4());  // Default color
         }
 
         std::cout << "Optimized to " << commands.size() << " commands" << std::endl;
@@ -106,5 +106,51 @@ namespace obj2blocks {
     int BlockOptimizer::calculateSavings(const Box3i&box) {
         int volume = box.volume();
         return volume - 1;
+    }
+    
+    std::vector<MinecraftCommand> BlockOptimizer::optimizeWithColors(const std::set<VoxelData>&voxels) {
+        std::vector<MinecraftCommand> commands;
+        
+        if (!optimization_enabled_ || voxels.empty()) {
+            for (const auto&voxel: voxels) {
+                commands.emplace_back(voxel.position, voxel.color);
+            }
+            return commands;
+        }
+        
+        std::cout << "Optimizing " << voxels.size() << " colored blocks..." << std::endl;
+        
+        // Group voxels by color
+        std::map<Color4, std::set<Vec3i>> voxels_by_color;
+        for (const auto& vd : voxels) {
+            voxels_by_color[vd.color].insert(vd.position);
+        }
+        
+        std::cout << "Found " << voxels_by_color.size() << " unique colors" << std::endl;
+        
+        int total_fillarea = 0;
+        int total_createblock = 0;
+        
+        // Optimize each color group separately
+        for (const auto& [color, color_voxels] : voxels_by_color) {
+            std::set<Vec3i> remaining = color_voxels;
+            std::vector<Box3i> regions = findRectangularRegions(remaining);
+            
+            for (const auto& region : regions) {
+                commands.emplace_back(region, color);
+                total_fillarea++;
+            }
+            
+            for (const auto& voxel : remaining) {
+                commands.emplace_back(voxel, color);
+                total_createblock++;
+            }
+        }
+        
+        std::cout << "Optimized to " << commands.size() << " commands" << std::endl;
+        std::cout << "  - FillArea commands: " << total_fillarea << std::endl;
+        std::cout << "  - CreateBlock commands: " << total_createblock << std::endl;
+        
+        return commands;
     }
 }

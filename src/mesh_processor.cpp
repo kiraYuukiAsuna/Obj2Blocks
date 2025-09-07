@@ -11,13 +11,26 @@ namespace obj2blocks {
     }
 
     bool MeshProcessor::loadOBJ(const std::string&filename) {
+        // First try to load with our custom loader for material support
+        obj_loader_ = std::make_unique<ObjLoader>();
+        if (obj_loader_->load(filename)) {
+            // Build the surface mesh from loaded data
+            if (obj_loader_->buildSurfaceMesh(mesh_)) {
+                std::cout << "Loaded mesh with materials: " << mesh_.n_vertices() << " vertices and "
+                        << mesh_.n_faces() << " faces" << std::endl;
+                return true;
+            }
+        }
+        
+        // Fallback to pmp loader if custom loader fails
+        obj_loader_.reset();
         try {
             pmp::read(mesh_, filename);
             if (mesh_.n_vertices() == 0) {
                 std::cerr << "Error: Loaded mesh has no vertices" << std::endl;
                 return false;
             }
-            std::cout << "Loaded mesh with " << mesh_.n_vertices() << " vertices and "
+            std::cout << "Loaded mesh without materials: " << mesh_.n_vertices() << " vertices and "
                     << mesh_.n_faces() << " faces" << std::endl;
             return true;
         }

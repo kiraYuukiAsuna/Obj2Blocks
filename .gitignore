@@ -1,7 +1,6 @@
 .idea/
 .vscode/
 cmake-build-debug/
+cmake-build-release/
 build/
-Untitled.obj
-Untitled.json
-blocks.obj
+Assets/

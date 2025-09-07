@@ -9,6 +9,7 @@ find_package(cxxopts CONFIG REQUIRED)
 find_package(pmp CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Eigen3 CONFIG REQUIRED)
+find_package(Stb REQUIRED)
 
 # Include directories
 include_directories(
@@ -22,6 +23,9 @@ set(SOURCES
         src/voxelizer.cpp
         src/block_optimizer.cpp
         src/json_exporter.cpp
+        src/material_loader.cpp
+        src/obj_loader.cpp
+        src/ObjGenerator.cpp
 )
 
 # Headers
@@ -32,13 +36,17 @@ set(HEADERS
         include/json_exporter.h
         include/types.h
         include/ObjGenerator.h
+        include/material_loader.h
+        include/obj_loader.h
 )
 
 # Create executable
-add_executable(obj2blocks ${SOURCES} ${HEADERS})
+add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+
+target_include_directories(${PROJECT_NAME} PRIVATE ${Stb_INCLUDE_DIR})
 
 # Link libraries
-target_link_libraries(obj2blocks
+target_link_libraries(${PROJECT_NAME}
         cxxopts::cxxopts
         pmp
         nlohmann_json::nlohmann_json

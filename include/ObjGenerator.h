@@ -1,116 +1,57 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <map>
+#include <vector>
+#include <tuple>
+#include <string>
+#include <sstream>
+#include <iomanip>
+#include <iostream>
 
 using json = nlohmann::json;
 
 struct Vec3 {
     double x, y, z;
+    Vec3(double x = 0, double y = 0, double z = 0) : x(x), y(y), z(z) {}
+};
 
-    Vec3(double x = 0, double y = 0, double z = 0) : x(x), y(y), z(z) {
+struct Color {
+    int r, g, b, a;
+    
+    Color(int r = 255, int g = 255, int b = 255, int a = 255) 
+        : r(r), g(g), b(b), a(a) {}
+    
+    bool operator<(const Color& other) const {
+        if (r != other.r) return r < other.r;
+        if (g != other.g) return g < other.g;
+        if (b != other.b) return b < other.b;
+        return a < other.a;
+    }
+    
+    std::string toMaterialName() const {
+        std::stringstream ss;
+        ss << "material_" << std::hex << std::setfill('0') 
+           << std::setw(2) << r << std::setw(2) << g 
+           << std::setw(2) << b << std::setw(2) << a;
+        return ss.str();
     }
 };
 
 class ObjGenerator {
 private:
     std::vector<Vec3> vertices;
-    std::vector<std::vector<int>> faces;
+    std::vector<std::tuple<std::vector<int>, std::string>> faces;
+    std::map<Color, std::string> materials;
     int vertexOffset = 0;
 
-    void addCube(const Vec3&position, double size = 1.0) {
-        double half = size / 2.0;
-
-        vertices.push_back(Vec3(position.x - half, position.y - half, position.z - half));
-        vertices.push_back(Vec3(position.x + half, position.y - half, position.z - half));
-        vertices.push_back(Vec3(position.x + half, position.y + half, position.z - half));
-        vertices.push_back(Vec3(position.x - half, position.y + half, position.z - half));
-        vertices.push_back(Vec3(position.x - half, position.y - half, position.z + half));
-        vertices.push_back(Vec3(position.x + half, position.y - half, position.z + half));
-        vertices.push_back(Vec3(position.x + half, position.y + half, position.z + half));
-        vertices.push_back(Vec3(position.x - half, position.y + half, position.z + half));
-
-        int base = vertexOffset + 1;
-        faces.push_back({base, base + 1, base + 2, base + 3});
-        faces.push_back({base + 4, base + 7, base + 6, base + 5});
-        faces.push_back({base, base + 4, base + 5, base + 1});
-        faces.push_back({base + 1, base + 5, base + 6, base + 2});
-        faces.push_back({base + 2, base + 6, base + 7, base + 3});
-        faces.push_back({base + 3, base + 7, base + 4, base});
-
-        vertexOffset += 8;
-    }
-
-    void addFilledArea(const Vec3&corner1, const Vec3&corner2) {
-        double xMin = std::min(corner1.x, corner2.x);
-        double xMax = std::max(corner1.x, corner2.x);
-        double yMin = std::min(corner1.y, corner2.y);
-        double yMax = std::max(corner1.y, corner2.y);
-        double zMin = std::min(corner1.z, corner2.z);
-        double zMax = std::max(corner1.z, corner2.z);
-
-        vertices.push_back(Vec3(xMin, yMin, zMin));
-        vertices.push_back(Vec3(xMax, yMin, zMin));
-        vertices.push_back(Vec3(xMax, yMax, zMin));
-        vertices.push_back(Vec3(xMin, yMax, zMin));
-        vertices.push_back(Vec3(xMin, yMin, zMax));
-        vertices.push_back(Vec3(xMax, yMin, zMax));
-        vertices.push_back(Vec3(xMax, yMax, zMax));
-        vertices.push_back(Vec3(xMin, yMax, zMax));
-
-        int base = vertexOffset + 1;
-        faces.push_back({base, base + 1, base + 2, base + 3});
-        faces.push_back({base + 4, base + 7, base + 6, base + 5});
-        faces.push_back({base, base + 4, base + 5, base + 1});
-        faces.push_back({base + 1, base + 5, base + 6, base + 2});
-        faces.push_back({base + 2, base + 6, base + 7, base + 3});
-        faces.push_back({base + 3, base + 7, base + 4, base});
-
-        vertexOffset += 8;
-    }
+    void addCube(const Vec3& position, const std::string& materialName, double size = 1.0);
+    void addFilledArea(const Vec3& corner1, const Vec3& corner2, const std::string& materialName);
+    std::string getOrCreateMaterial(const Color& color);
+    void writeMTLFile(const std::string& filename);
+    void createColorTexture(const std::string& filename);
 
 public:
-    void processCommand(const json&command) {
-        std::string type = command["type"];
-
-        if (type == "createblock") {
-            const auto&pos = command["position"];
-            Vec3 position(pos[0], pos[1], pos[2]);
-            addCube(position);
-        }
-        else if (type == "fillarea") {
-            const auto&c1 = command["corner1"];
-            const auto&c2 = command["corner2"];
-            Vec3 corner1(c1[0], c1[1], c1[2]);
-            Vec3 corner2(c2[0], c2[1], c2[2]);
-            addFilledArea(corner1, corner2);
-        }
-    }
-
-    void writeToFile(const std::string&filename) {
-        std::ofstream file(filename);
-        if (!file.is_open()) {
-            std::cerr << "Error: Cannot open output file " << filename << std::endl;
-            return;
-        }
-
-        file << "# OBJ file generated from JSON commands\n";
-        file << "# Generated by Obj2Blocks converter\n\n";
-
-        for (const auto&v: vertices) {
-            file << "v " << v.x << " " << v.y << " " << v.z << "\n";
-        }
-
-        file << "\n";
-
-        for (const auto&face: faces) {
-            file << "f";
-            for (int idx: face) {
-                file << " " << idx;
-            }
-            file << "\n";
-        }
-
-        file.close();
-        std::cout << "OBJ file written to: " << filename << std::endl;
-    }
+    void processCommand(const json& command);
+    void writeToFile(const std::string& filename);
 };
