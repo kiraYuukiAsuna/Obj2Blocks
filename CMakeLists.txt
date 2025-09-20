@@ -4,7 +4,10 @@ project(Obj2Blocks)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(OpenMP REQUIRED)
+if (WIN32)
+    find_package(OpenMP REQUIRED)
+endif ()
+
 find_package(cxxopts CONFIG REQUIRED)
 find_package(pmp CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
