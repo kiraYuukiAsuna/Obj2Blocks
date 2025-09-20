@@ -186,7 +186,7 @@ namespace obj2blocks {
         
         std::set<VoxelData> surface_voxels = voxelizeSurfaceWithMaterials(processor);
         std::cout << "Surface voxels with materials: " << surface_voxels.size() << std::endl;
-        
+
         if (solid) {
             std::set<VoxelData> filled_voxels = fillInteriorWithColors(surface_voxels);
             std::cout << "Total voxels after filling: " << filled_voxels.size() << std::endl;
@@ -253,6 +253,10 @@ namespace obj2blocks {
         int min_z = std::min({voxel0.z, voxel1.z, voxel2.z});
         int max_z = std::max({voxel0.z, voxel1.z, voxel2.z});
         
+        // 使用map来累积同一位置的颜色
+        struct ColorAccum { double r=0, g=0, b=0, a=0; int count=0; };
+        std::map<Vec3i, ColorAccum> color_accumulator;
+
         for (int x = min_x; x <= max_x; ++x) {
             for (int y = min_y; y <= max_y; ++y) {
                 for (int z = min_z; z <= max_z; ++z) {
@@ -276,19 +280,46 @@ namespace obj2blocks {
                             color = Color4();  // Default white
                         }
                         
-                        voxels.insert(VoxelData(Vec3i(x, y, z), color));
+                        // 累积颜色而不是直接插入
+                        Vec3i pos(x, y, z);
+                        auto& accum = color_accumulator[pos];
+                        accum.r += color.r;
+                        accum.g += color.g;
+                        accum.b += color.b;
+                        accum.a += color.a;
+                        accum.count++;
                     }
                 }
             }
         }
         
-        // Ensure corner vertices are included
-        Color4 default_color = material ? 
+        // 确保三个顶点被包含
+        Color4 default_color = material ?
             Color4(material->diffuse[0] * 255, material->diffuse[1] * 255, 
                   material->diffuse[2] * 255, material->opacity * 255) : Color4();
-        voxels.insert(VoxelData(voxel0, default_color));
-        voxels.insert(VoxelData(voxel1, default_color));
-        voxels.insert(VoxelData(voxel2, default_color));
+
+        // 将顶点颜色也累积进去
+        for (const Vec3i& vertex_pos : {voxel0, voxel1, voxel2}) {
+            auto& accum = color_accumulator[vertex_pos];
+            accum.r += default_color.r;
+            accum.g += default_color.g;
+            accum.b += default_color.b;
+            accum.a += default_color.a;
+            accum.count++;
+        }
+
+        // 计算平均颜色并插入最终结果
+        for (const auto& kv : color_accumulator) {
+            const Vec3i& pos = kv.first;
+            const ColorAccum& accum = kv.second;
+            Color4 avg_color(
+                static_cast<uint8_t>(std::round(accum.r / std::max(1, accum.count))),
+                static_cast<uint8_t>(std::round(accum.g / std::max(1, accum.count))),
+                static_cast<uint8_t>(std::round(accum.b / std::max(1, accum.count))),
+                static_cast<uint8_t>(std::round(accum.a / std::max(1, accum.count)))
+            );
+            voxels.insert(VoxelData(pos, avg_color));
+        }
     }
     
     bool Voxelizer::computeBarycentricCoordinates(const pmp::Point& p, const pmp::Point& v0,
