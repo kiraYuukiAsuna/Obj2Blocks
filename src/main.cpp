@@ -20,11 +20,12 @@ int obj2blocks_main(int argc, char* argv[]) {
     options.add_options()
             ("i,input", "Input OBJ file", cxxopts::value<std::string>())
             ("o,output", "Output JSON file", cxxopts::value<std::string>())
-            ("s,size", "Target size for largest dimension", cxxopts::value<double>()->default_value("100"))
+            ("s,size", "Target size for largest dimension", cxxopts::value<double>()->default_value("200"))
             ("v,voxel-size", "Voxel size", cxxopts::value<double>()->default_value("1.0"))
             ("scale", "Manual scale factor (disables auto-scale)", cxxopts::value<double>())
-            ("surface", "Only voxelize surface (no interior fill)")
-            ("no-optimize", "Disable fillarea optimization")
+            ("surface", "Only voxelize surface (no interior fill)", cxxopts::value<bool>()->default_value("true"))
+            ("optimize", "Enable fillarea optimization", cxxopts::value<bool>()->default_value("false"))
+            ("with-texture", "Use texture mapping for block colors (if available)", cxxopts::value<bool>()->default_value("false"))
             ("h,help", "Show this help message");
 
     try {
@@ -52,11 +53,14 @@ int obj2blocks_main(int argc, char* argv[]) {
         }
 
         if (result.count("surface")) {
-            params.solid = false;
+            params.solid = !result["surface"].as<bool>();
         }
 
-        if (result.count("no-optimize")) {
-            params.optimize = false;
+        if (result.count("optimize")) {
+            params.optimize = result["optimize"].as<bool>();
+        }
+        if (result.count("with-texture")) {
+            params.with_texture = result["with-texture"].as<bool>();
         }
     }
     catch (const cxxopts::exceptions::exception&e) {
@@ -72,6 +76,7 @@ int obj2blocks_main(int argc, char* argv[]) {
     std::cout << "Voxel size: " << params.voxel_size << std::endl;
     std::cout << "Fill mode: " << (params.solid ? "solid" : "surface") << std::endl;
     std::cout << "Optimization: " << (params.optimize ? "enabled" : "disabled") << std::endl;
+    std::cout << "Texture mapping: " << (params.with_texture ? "enabled" : "disabled") << std::endl;
     std::cout << std::endl;
 
     MeshProcessor processor;
@@ -95,17 +100,42 @@ int obj2blocks_main(int argc, char* argv[]) {
 
     Voxelizer voxelizer(params.voxel_size);
     std::cout << "\nStarting voxelization..." << std::endl;
-    std::set<Vec3i> voxels = voxelizer.voxelize(processor.getMesh(), params.solid);
-
-    if (voxels.empty()) {
-        std::cerr << "Error: No voxels generated from the model." << std::endl;
-        return 1;
+    
+    // Check if we have material information
+    std::vector<MinecraftCommand> commands;
+    size_t total_voxels = 0;
+    
+    if (processor.hasObjLoader() && params.with_texture) {
+        // Use material-aware voxelization
+        std::set<VoxelData> voxels_with_colors = voxelizer.voxelizeWithMaterials(processor, params.solid);
+        
+        if (voxels_with_colors.empty()) {
+            std::cerr << "Error: No voxels generated from the model." << std::endl;
+            return 1;
+        }
+        
+        total_voxels = voxels_with_colors.size();
+        
+        BlockOptimizer optimizer;
+        optimizer.setOptimizationEnabled(params.optimize);
+        std::cout << "\nOptimizing block placement with colors..." << std::endl;
+        commands = optimizer.optimizeWithColors(voxels_with_colors);
+    } else {
+        // Fallback to simple voxelization
+        std::set<Vec3i> voxels = voxelizer.voxelize(processor.getMesh(), params.solid);
+        
+        if (voxels.empty()) {
+            std::cerr << "Error: No voxels generated from the model." << std::endl;
+            return 1;
+        }
+        
+        total_voxels = voxels.size();
+        
+        BlockOptimizer optimizer;
+        optimizer.setOptimizationEnabled(params.optimize);
+        std::cout << "\nOptimizing block placement..." << std::endl;
+        commands = optimizer.optimize(voxels);
     }
-
-    BlockOptimizer optimizer;
-    optimizer.setOptimizationEnabled(params.optimize);
-    std::cout << "\nOptimizing block placement..." << std::endl;
-    std::vector<MinecraftCommand> commands = optimizer.optimize(voxels);
 
     JsonExporter exporter;
     std::cout << "\nExporting to JSON..." << std::endl;
@@ -115,11 +145,11 @@ int obj2blocks_main(int argc, char* argv[]) {
     }
 
     std::cout << "\n=== Conversion Complete ===" << std::endl;
-    std::cout << "Total blocks: " << voxels.size() << std::endl;
+    std::cout << "Total blocks: " << total_voxels << std::endl;
     std::cout << "Total commands: " << commands.size() << std::endl;
 
     if (params.optimize) {
-        double reduction = 100.0 * (1.0 - (double)commands.size() / voxels.size());
+        double reduction = 100.0 * (1.0 - (double)commands.size() / total_voxels);
         std::cout << "Command reduction: " << reduction << "%" << std::endl;
     }
 
