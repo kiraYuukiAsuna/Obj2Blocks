@@ -223,35 +223,32 @@ int json2obj_main(int argc, char* argv[]) {
     return 0;
 }
 
-int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <mode> [options]\n";
-        std::cerr << "\nModes:\n";
-        std::cerr << "  obj2json    Convert OBJ file to Minecraft commands JSON\n";
-        std::cerr << "  json2obj    Convert JSON commands to OBJ file\n";
-        std::cerr << "\nUse '<mode> --help' for mode-specific options\n";
-        return 1;
-    }
+int main(int argc, char *argv[]) {
+  if (argc < 2) {
+    std::cerr << "Usage: " << argv[0] << " <mode> [options]\n";
+    std::cerr << "\nModes:\n";
+    std::cerr << "  obj2json    Convert OBJ file to Minecraft commands JSON\n";
+    std::cerr << "  json2obj    Convert JSON commands to OBJ file\n";
+    std::cerr << "\nUse '<mode> --help' for mode-specific options\n";
+    return 1;
+  }
 
-    std::string mode = argv[1];
+  std::string mode = argv[1];
 
-    if (mode == "obj2json") {
-        return obj2blocks_main(argc - 1, argv + 1);
-    }
-    else if (mode == "json2obj") {
-        return json2obj_main(argc - 1, argv + 1);
-    }
-    else if (mode == "--help" || mode == "-h") {
-        std::cout << "Usage: " << argv[0] << " <mode> [options]\n";
-        std::cout << "\nModes:\n";
-        std::cout << "  obj2json    Convert OBJ file to Minecraft commands JSON\n";
-        std::cout << "  json2obj    Convert JSON commands to OBJ file\n";
-        std::cout << "\nUse '<mode> --help' for mode-specific options\n";
-        return 0;
-    }
-    else {
-        std::cerr << "Error: Unknown mode '" << mode << "'\n";
-        std::cerr << "Use '" << argv[0] << " --help' for usage information\n";
-        return 1;
-    }
+  if (mode == "obj2json") {
+    return obj2blocks_main(argc - 1, argv + 1);
+  } else if (mode == "json2obj") {
+    return json2obj_main(argc - 1, argv + 1);
+  } else if (mode == "--help" || mode == "-h") {
+    std::cout << "Usage: " << argv[0] << " <mode> [options]\n";
+    std::cout << "\nModes:\n";
+    std::cout << "  obj2json    Convert OBJ file to Minecraft commands JSON\n";
+    std::cout << "  json2obj    Convert JSON commands to OBJ file\n";
+    std::cout << "\nUse '<mode> --help' for mode-specific options\n";
+    return 0;
+  } else {
+    std::cerr << "Error: Unknown mode '" << mode << "'\n";
+    std::cerr << "Use '" << argv[0] << " --help' for usage information\n";
+    return 1;
+  }
 }

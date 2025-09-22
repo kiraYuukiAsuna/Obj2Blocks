@@ -256,7 +256,7 @@ namespace obj2blocks {
         int min_z = std::min({voxel0.z, voxel1.z, voxel2.z});
         int max_z = std::max({voxel0.z, voxel1.z, voxel2.z});
         
-        // 使用map来累积同一位置的颜色
+        // 使用map来累积同一位置的颜色 - 只累积纹理采样的颜色
         struct ColorAccum { double r=0, g=0, b=0, a=0; int count=0; };
         std::map<Vec3i, ColorAccum> color_accumulator;
 
@@ -274,8 +274,8 @@ namespace obj2blocks {
                         // Interpolate UV coordinates
                         float u = w0 * uv0.u + w1 * uv1.u + w2 * uv2.u;
                         float v = w0 * uv0.v + w1 * uv1.v + w2 * uv2.v;
-                        
-                        // Get color from material
+
+                        // Get color from material - 优先使用纹理采样
                         Color4 color;
                         if (material) {
                             color = mat_loader.calculateFinalColor(*material, u, v);
@@ -295,20 +295,36 @@ namespace obj2blocks {
                 }
             }
         }
-        
-        // 确保三个顶点被包含
-        Color4 default_color = material ?
-            Color4(material->diffuse[0] * 255, material->diffuse[1] * 255, 
-                  material->diffuse[2] * 255, material->opacity * 255) : Color4();
 
-        // 将顶点颜色也累积进去
+        // 为了确保三个顶点被包含，我们需要单独处理它们
+        // 但是只在没有其他采样点时才使用材质的默认diffuse颜色
         for (const Vec3i& vertex_pos : {voxel0, voxel1, voxel2}) {
-            auto& accum = color_accumulator[vertex_pos];
-            accum.r += default_color.r;
-            accum.g += default_color.g;
-            accum.b += default_color.b;
-            accum.a += default_color.a;
+          if (color_accumulator.find(vertex_pos) == color_accumulator.end()) {
+            // 这个顶点位置没有被三角形内部的采样覆盖，使用材质默认颜色
+            Color4 vertex_color;
+            if (material) {
+              // 对于顶点，我们也尝试使用对应的UV坐标进行纹理采样
+              Vec2f vertex_uv;
+              if (vertex_pos == voxel0)
+                vertex_uv = uv0;
+              else if (vertex_pos == voxel1)
+                vertex_uv = uv1;
+              else
+                vertex_uv = uv2;
+
+              vertex_color = mat_loader.calculateFinalColor(
+                  *material, vertex_uv.u, vertex_uv.v);
+            } else {
+              vertex_color = Color4();
+            }
+
+            auto &accum = color_accumulator[vertex_pos];
+            accum.r += vertex_color.r;
+            accum.g += vertex_color.g;
+            accum.b += vertex_color.b;
+            accum.a += vertex_color.a;
             accum.count++;
+          }
         }
 
         // 计算平均颜色并插入最终结果
@@ -332,16 +348,27 @@ namespace obj2blocks {
         pmp::Point edge2 = v2 - v0;
         pmp::Point normal = pmp::cross(edge1, edge2);
         
+        // 检查法向量是否有效
+        float normal_length = pmp::norm(normal);
+        if (normal_length < 1e-10) {
+            return false; // 退化三角形
+        }
+        
         // Check if point is close to the triangle plane
         pmp::Point v0_to_p = p - v0;
-        float dist_to_plane = std::abs(pmp::dot(v0_to_p, normal) / pmp::norm(normal));
+        float dist_to_plane = std::abs(pmp::dot(v0_to_p, normal) / normal_length);
         
         if (dist_to_plane > voxel_size_) {
             return false;
         }
         
         // Project point onto triangle plane
-        float t = pmp::dot(normal, v0 - p) / pmp::dot(normal, normal);
+        float normal_dot_normal = pmp::dot(normal, normal);
+        if (normal_dot_normal < 1e-10) {
+            return false; // 安全检查
+        }
+        
+        float t = pmp::dot(normal, v0 - p) / normal_dot_normal;
         pmp::Point projected = p + normal * t;
         
         // Compute barycentric coordinates for projected point

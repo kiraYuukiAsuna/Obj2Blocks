@@ -173,28 +173,47 @@ Color4 MaterialLoader::sampleTexture(const TextureData& texture, float u, float 
     if (!texture.isValid()) {
         return Color4();
     }
-    
-    // Wrap UV coordinates
+
+    // 确保UV坐标在[0,1]范围内（使用wrap模式）
     u = u - std::floor(u);
     v = v - std::floor(v);
-    
-    // Convert to pixel coordinates
-    int x = static_cast<int>(u * texture.width) % texture.width;
-    int y = static_cast<int>((1.0f - v) * texture.height) % texture.height;  // Flip V coordinate
-    
-    // Clamp to valid range
+
+    // 处理负数情况
+    if (u < 0)
+      u += 1.0f;
+    if (v < 0)
+      v += 1.0f;
+
+    // 额外的安全检查，确保UV在[0,1]范围内
+    u = std::max(0.0f, std::min(1.0f, u));
+    v = std::max(0.0f, std::min(1.0f, v));
+
+    // 转换为像素坐标 - 使用最近邻采样保持像素风格
+    int x = static_cast<int>(u * texture.width);
+    int y = static_cast<int>((1.0f - v) * texture.height); // 翻转V坐标
+
+    // 确保坐标在有效范围内 - 使用更严格的边界检查
     x = std::max(0, std::min(x, texture.width - 1));
     y = std::max(0, std::min(y, texture.height - 1));
-    
-    // Calculate pixel index
+
+    // 计算像素索引
     int pixel_index = (y * texture.width + x) * texture.channels;
     
+    // 额外的安全检查 - 确保索引不会超出数据范围
     Color4 color;
-    color.r = texture.data[pixel_index];
-    color.g = texture.channels > 1 ? texture.data[pixel_index + 1] : texture.data[pixel_index];
-    color.b = texture.channels > 2 ? texture.data[pixel_index + 2] : texture.data[pixel_index];
-    color.a = texture.channels > 3 ? texture.data[pixel_index + 3] : 255;
-    
+    if (pixel_index >= 0 && texture.data.size() > 0 &&
+        pixel_index + texture.channels - 1 < static_cast<int>(texture.data.size())) {
+      color.r = texture.data[pixel_index];
+      color.g = texture.channels > 1 ? texture.data[pixel_index + 1]
+                                     : texture.data[pixel_index];
+      color.b = texture.channels > 2 ? texture.data[pixel_index + 2]
+                                     : texture.data[pixel_index];
+      color.a = texture.channels > 3 ? texture.data[pixel_index + 3] : 255;
+    } else {
+      // 安全保护：如果索引超出范围，返回白色
+      color = Color4();
+    }
+
     return color;
 }
 
@@ -208,33 +227,37 @@ Material* MaterialLoader::getMaterial(const std::string& name) {
 
 Color4 MaterialLoader::calculateFinalColor(const Material& material, float u, float v) const {
     Color4 final_color;
-    
-    // Start with diffuse color
+
     if (material.hasDiffuseTexture()) {
-        final_color = sampleTexture(material.textures.at(material.diffuse_texture_path), u, v);
+      final_color = sampleTexture(
+          material.textures.at(material.diffuse_texture_path), u, v);
     } else {
-        final_color.r = static_cast<uint8_t>(material.diffuse[0] * 255);
-        final_color.g = static_cast<uint8_t>(material.diffuse[1] * 255);
-        final_color.b = static_cast<uint8_t>(material.diffuse[2] * 255);
-        final_color.a = static_cast<uint8_t>(material.opacity * 255);
+      final_color.r = static_cast<uint8_t>(material.diffuse[0] * 255);
+      final_color.g = static_cast<uint8_t>(material.diffuse[1] * 255);
+      final_color.b = static_cast<uint8_t>(material.diffuse[2] * 255);
+      final_color.a = static_cast<uint8_t>(material.opacity * 255);
     }
-    
-    // Add emissive contribution
+
     if (!material.emissive_texture_path.empty()) {
         auto it = material.textures.find(material.emissive_texture_path);
         if (it != material.textures.end() && it->second.isValid()) {
             Color4 emissive = sampleTexture(it->second, u, v);
-            final_color.r = std::min(255, final_color.r + emissive.r);
-            final_color.g = std::min(255, final_color.g + emissive.g);
-            final_color.b = std::min(255, final_color.b + emissive.b);
+            final_color.r = std::min(
+                255, final_color.r + static_cast<int>(emissive.r * 0.5));
+            final_color.g = std::min(
+                255, final_color.g + static_cast<int>(emissive.g * 0.5));
+            final_color.b = std::min(
+                255, final_color.b + static_cast<int>(emissive.b * 0.5));
         }
     } else if (material.emissive[0] > 0 || material.emissive[1] > 0 || material.emissive[2] > 0) {
-        final_color.r = std::min(255, final_color.r + static_cast<int>(material.emissive[0] * 255));
-        final_color.g = std::min(255, final_color.g + static_cast<int>(material.emissive[1] * 255));
-        final_color.b = std::min(255, final_color.b + static_cast<int>(material.emissive[2] * 255));
+      final_color.r = std::min(
+          255, final_color.r + static_cast<int>(material.emissive[0] * 128));
+      final_color.g = std::min(
+          255, final_color.g + static_cast<int>(material.emissive[1] * 128));
+      final_color.b = std::min(
+          255, final_color.b + static_cast<int>(material.emissive[2] * 128));
     }
-    
-    // Apply opacity texture if exists
+
     if (!material.opacity_texture_path.empty()) {
         auto it = material.textures.find(material.opacity_texture_path);
         if (it != material.textures.end() && it->second.isValid()) {

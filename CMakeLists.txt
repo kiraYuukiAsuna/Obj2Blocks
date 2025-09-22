@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
+
+set(CMAKE_TOOLCHAIN_FILE "C:/Users/KiraY/.vcpkg-clion/vcpkg/scripts/buildsystems/vcpkg.cmake")
+
 project(Obj2Blocks)
 
 set(CMAKE_CXX_STANDARD 20)
