@@ -26,7 +26,7 @@ namespace obj2blocks {
 
         Vec3i pointToVoxel(const pmp::Point&point) const;
 
-        bool isInsideMesh(const pmp::Point&point, const pmp::SurfaceMesh&mesh) const;
+        bool isInsideMesh(const pmp::Point& point, const pmp::SurfaceMesh& mesh) const;
 
         std::set<Vec3i> voxelizeSurface(pmp::SurfaceMesh&mesh);
         
@@ -53,5 +53,8 @@ namespace obj2blocks {
         bool computeBarycentricCoordinates(const pmp::Point& p, const pmp::Point& v0,
                                           const pmp::Point& v1, const pmp::Point& v2,
                                           float& w0, float& w1, float& w2) const;
+
+        // Ensure unique positions by averaging colors when duplicates exist
+        std::set<VoxelData> dedupeByPositionAverage(const std::set<VoxelData>& voxels) const;
     };
 }
