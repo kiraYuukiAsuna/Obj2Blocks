@@ -3,6 +3,7 @@
 #include <iostream>
 #include <climits>
 #include <algorithm>
+#include <map>
 
 namespace obj2blocks {
     JsonExporter::JsonExporter() {
@@ -94,8 +95,33 @@ namespace obj2blocks {
             }
         }
 
+        // Compute duplicate blocks placed at the same position
+        // We count how many extra placements happen on already-occupied positions.
+        // Implementation note: uses std::map with Vec3i::operator< defined in types.h
+        long long duplicate_blocks = 0;
+        {
+            std::map<Vec3i, int> freq;
+            for (const auto& cmd : commands) {
+                if (cmd.type == CommandType::CreateBlock) {
+                    freq[cmd.position] += 1;
+                } else { // FillArea
+                    for (int x = cmd.area.min.x; x <= cmd.area.max.x; ++x) {
+                        for (int y = cmd.area.min.y; y <= cmd.area.max.y; ++y) {
+                            for (int z = cmd.area.min.z; z <= cmd.area.max.z; ++z) {
+                                freq[{x, y, z}] += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            for (const auto& kv : freq) {
+                if (kv.second > 1) duplicate_blocks += static_cast<long long>(kv.second - 1);
+            }
+        }
+
         json["model_info"]["fillarea_commands"] = fillarea_count;
         json["model_info"]["createblock_commands"] = createblock_count;
+        json["model_info"]["duplicate_blocks"] = duplicate_blocks;
         json["commands"] = commands_array;
 
         return json;

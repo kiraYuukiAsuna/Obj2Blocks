@@ -234,6 +234,33 @@ namespace obj2blocks {
             face_idx++;
         }
         
+        // Deduplicate by position across all triangles by averaging colors
+        if (!voxels.empty()) {
+            struct ColorAccum { double r=0, g=0, b=0, a=0; int count=0; };
+            std::map<Vec3i, ColorAccum> accum;
+            for (const auto& vd : voxels) {
+                auto& ac = accum[vd.position];
+                ac.r += vd.color.r;
+                ac.g += vd.color.g;
+                ac.b += vd.color.b;
+                ac.a += vd.color.a;
+                ac.count += 1;
+            }
+            std::set<VoxelData> deduped;
+            for (const auto& kv : accum) {
+                const Vec3i& pos = kv.first;
+                const ColorAccum& ac = kv.second;
+                Color4 avg(
+                    static_cast<uint8_t>(std::round(ac.r / std::max(1, ac.count))),
+                    static_cast<uint8_t>(std::round(ac.g / std::max(1, ac.count))),
+                    static_cast<uint8_t>(std::round(ac.b / std::max(1, ac.count))),
+                    static_cast<uint8_t>(std::round(ac.a / std::max(1, ac.count)))
+                );
+                deduped.insert(VoxelData(pos, avg));
+            }
+            voxels.swap(deduped);
+        }
+
         return voxels;
     }
     
